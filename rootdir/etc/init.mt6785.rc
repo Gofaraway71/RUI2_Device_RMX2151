@@ -1,0 +1,63 @@
+on init
+    mount none /vendor/lost+found /vendor/overlay bind
+
+    # Update fastcharge firmware
+    write /proc/fastchg_fw_update 1
+
+on fs
+    mount_all /vendor/etc/fstab.mt6785 --early
+    mount_all /vendor/etc/fstab.mt6785 --late
+
+on post-fs
+    # Unmount the overridden fstab because the SELinux label is incorrect
+    # and some MTK daemons can crash because of that
+    # (at post-fs, the fstab has already been used to mount the partitions,
+    #  so it is fine to just revert back)
+    umount /vendor/etc/fstab.mt6785
+
+on post-fs-data
+    # VideoCodec
+    chmod 0666 /dev/video0
+    chmod 0666 /dev/video1
+
+    # Services
+    setprop init.svc.console stopped
+
+on property:sys.boot_completed=1
+    # ZRAM
+    swapon_all /vendor/fstab.enableswap
+
+    # Touchpanel
+    write /proc/touchpanel/oplus_tp_limit_enable 0
+    write /proc/touchpanel/oplus_tp_direction 1
+
+# Disable AOSP RIL if MTK RIL is up
+on property:vendor.ril.mtk=1
+    stop vendor.ril-daemon
+
+# Performance profiles
+on property:persist.perf_profile=0
+    exec - root -- /system/bin/perf_profile.sh 0
+
+on property:persist.perf_profile=1
+    exec - root -- /system/bin/perf_profile.sh 1
+
+on property:persist.perf_profile=2
+    exec - root -- /system/bin/perf_profile.sh 2
+
+on property:sys.boot_completed=1
+    chown root root /sys/module/ged/parameters/gx_force_cpu_boost
+    chown root root /proc/cpufreq/cpufreq_power_mode
+    chown root root /proc/cpufreq/cpufreq_cci_mode
+
+service face_hal /system/bin/true
+    oneshot
+    disabled
+
+service aee_aedv /system/bin/true
+    oneshot
+    disabled
+
+service aee_aedv64 /system/bin/true
+    oneshot
+    disabled
